@@ -7,6 +7,7 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -16,6 +17,7 @@ namespace FaceRecognition
     {
         CameraDevice camera;
         AWSClient client;
+        bool isRunning = false;
 
         public MainView()
         {
@@ -23,7 +25,6 @@ namespace FaceRecognition
             updateCameralist();
             camera = new CameraDevice();
             client = new AWSClient();
-            //client.setID("AKIAZFAD7LHDADTHJZ5Y", "p0qcTFR8arMZ+x1pVGdwd83TE/cokx7M9dCiLqgl");
             I_TIMER_UI.Start();
 
 
@@ -34,9 +35,9 @@ namespace FaceRecognition
             var listIndex = DeviceService.CameraList();
             I_CB_CAMERA.Items.Clear();
 
-            for(int i = 0; i < listIndex; i++)
+            for (int i = 0; i < listIndex; i++)
             {
-                I_CB_CAMERA.Items.Add(String.Format("#{0,2:00}", (i +1))+" 카메라");
+                I_CB_CAMERA.Items.Add(String.Format("#{0,2:00}", (i + 1)) + " 카메라");
             }
             if (I_CB_CAMERA.Items.Count > 0)
                 I_CB_CAMERA.SelectedIndex = 0;
@@ -49,7 +50,7 @@ namespace FaceRecognition
 
         private void I_BTN_START_Click(object sender, EventArgs e)
         {
-            if(camera.IsCameraRunning == 0)
+            if (camera.IsCameraRunning == 0)
             {
                 camera.setCamera(I_CB_CAMERA.SelectedIndex);
                 I_CB_CAMERA.Enabled = false;
@@ -77,25 +78,56 @@ namespace FaceRecognition
 
         private void I_BTN_RECOGNITION_Click(object sender, EventArgs e)
         {
-            long strat = System.DateTime.Now.Ticks;
-            Dictionary<String,String> datas = Recognition.faceCheck(camera.getBitmap(), client);
-            long end = System.DateTime.Now.Ticks;
-            TimeSpan elapsedSpan = new TimeSpan(end - strat);
-
-            StringBuilder str = new StringBuilder();
-            
-            foreach(KeyValuePair<String, String> item in datas)
-            {
-                str.AppendLine(item.Key + " = " + item.Value);
-            }
-
-            str.AppendLine("수행 시간 - " + elapsedSpan.TotalMilliseconds + "ms");
-            I_TB_LOG.Text = str.ToString();
+            runFaceCheckFunction();
         }
 
         private void I_BTN_KEY_Click(object sender, EventArgs e)
         {
             client.setID(I_TB_ACCESSKEY.Text, I_TB_SECRETACCESSKEY.Text);
+        }
+
+        private void runFaceCheckFunction()
+        {
+            if (!isRunning)
+            {
+                isRunning = true;
+                Thread thread = new Thread(new ThreadStart(faceCheck));
+                thread.Start();
+            }
+        }
+        private void faceCheck()
+        {
+            long strat = System.DateTime.Now.Ticks;
+            Dictionary<String, String> datas = Recognition.faceCheck(camera.getBitmap(), client);
+            long end = System.DateTime.Now.Ticks;
+            TimeSpan elapsedSpan = new TimeSpan(end - strat);
+
+            StringBuilder str = new StringBuilder();
+
+            foreach (KeyValuePair<String, String> item in datas)
+            {
+                str.AppendLine(item.Key + " = " + item.Value);
+            }
+
+            str.AppendLine("수행 시간 - " + elapsedSpan.TotalMilliseconds + "ms");
+            setText(str.ToString(), I_TB_LOG);// I_TB_LOG.Text = str.ToString();
+
+            isRunning = false;
+        }
+
+
+        private void setText(string text, TextBox tb)
+        {
+            if (tb.InvokeRequired)
+            {
+                Invoke((MethodInvoker)delegate () {
+                    setText(text, tb);
+                });
+            }
+            else
+            {
+                tb.Text = text;
+            }
         }
     }
 }
